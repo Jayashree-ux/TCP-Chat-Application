@@ -1,54 +1,35 @@
-import socket
-import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import time
+import json
 
-# Server configuration
-HOST = '127.0.0.1'  # Localhost
-PORT = 12345        # Port to listen on
+HOST = "127.0.0.1"
+PORT = 8080
 
-clients = []
+class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.end_headers()
+        self.wfile.write(b"<html><body><h1>GET Request Handled</h1></body></html>")
+    
+    def do_POST(self):
+        # Properly handle the POST request and return a JSON response
+        content_length = int(self.headers['Content-Length'])  # Get the length of data
+        post_data = self.rfile.read(content_length)  # Read the data
+        print(f"Received POST data: {post_data.decode('utf-8')}")
 
-# Function to handle individual clients
-def handle_client(client_socket, address):
-    print(f"[NEW CONNECTION] {address} connected.")
-    while True:
-        try:
-            message = client_socket.recv(1024).decode('utf-8')
-            if not message:
-                break
+        # Respond with the current timestamp in JSON format
+        self.send_response(200)
+        self.send_header("Content-type", "application/json")
+        self.end_headers()
 
-            print(f"[MESSAGE FROM {address}] {message}")
-            broadcast_message(f"{address}: {message}", client_socket)
-        except:
-            print(f"[ERROR] Failed to receive message from {address}")
-            break
-
-    print(f"[DISCONNECT] {address} disconnected.")
-    clients.remove(client_socket)
-    client_socket.close()
-
-# Function to broadcast messages to all clients
-def broadcast_message(message, sender_socket):
-    for client in clients:
-        if client != sender_socket:
-            try:
-                client.send(message.encode('utf-8'))
-            except:
-                print("[ERROR] Failed to send message.")
-
-# Start the server
-def start_server():
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.bind((HOST, PORT))
-    server.listen(5)
-    print(f"[LISTENING] Server is running on {HOST}:{PORT}")
-
-    while True:
-        client_socket, address = server.accept()
-        clients.append(client_socket)
-
-        # Start a new thread to handle the client
-        client_thread = threading.Thread(target=handle_client, args=(client_socket, address))
-        client_thread.start()
+        response = {
+            "message": "POST request handled successfully",
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+        }
+        self.wfile.write(json.dumps(response).encode("utf-8"))
 
 if __name__ == "__main__":
-    start_server()
+    server = HTTPServer((HOST, PORT), SimpleHTTPRequestHandler)
+    print(f"Server running on {HOST}:{PORT}")
+    server.serve_forever()
